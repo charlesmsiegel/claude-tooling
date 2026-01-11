@@ -1,0 +1,12 @@
+<!--
+Fix Issue Command - Find and fix GitHub issues.
+
+Installation: Copy to .claude/commands/fix-issue.md
+Usage: /fix-issue <issue-number>
+Settings: {
+  "permissions": {
+    "allow": ["Skill(fix-issue)"]
+  }
+}
+-->
+Find and fix issue #$ARGUMENTS. Follow these steps: 1. Create a branch for the fix.  2. Understand the issue described in the ticket 3. Add appropriate tests 4. Locate the relevant code in our codebase 5. Implement a solution that addresses the root cause 6. Prepare a concise PR description

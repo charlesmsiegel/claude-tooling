@@ -1,0 +1,69 @@
+{
+  "hooks": [
+    {
+      "id": "branch_check",
+      "name": "Branch Protection",
+      "description": "Prevents commits directly to main/master branches",
+      "file": "branch_check.py",
+      "type": "PreToolUse",
+      "matcher": "Bash",
+      "statusMessage": "Checking branch",
+      "tags": ["git", "general"],
+      "requires": []
+    },
+    {
+      "id": "check_gitignore",
+      "name": "Gitignore Check",
+      "description": "Prevents writing to files that are gitignored",
+      "file": "check_gitignore.py",
+      "type": "PreToolUse",
+      "matcher": "Edit|Write|Update|Delete",
+      "statusMessage": "Checking file permissions",
+      "tags": ["git", "general"],
+      "requires": []
+    },
+    {
+      "id": "black_format",
+      "name": "Black Formatter",
+      "description": "Auto-format Python files with Black",
+      "file": "black_format.sh",
+      "type": "PostToolUse",
+      "matcher": "Edit|Write|Update|NotebookEdit|Delete",
+      "statusMessage": "Formatting with Black",
+      "tags": ["python", "formatting"],
+      "requires": ["black"]
+    },
+    {
+      "id": "ruff_lint",
+      "name": "Ruff Linter",
+      "description": "Lint and auto-fix Python files with Ruff",
+      "file": "ruff_lint.sh",
+      "type": "PostToolUse",
+      "matcher": "Edit|Write|Update|NotebookEdit|Delete",
+      "statusMessage": "Linting with Ruff",
+      "tags": ["python", "linting"],
+      "requires": ["ruff"]
+    },
+    {
+      "id": "precommit_run",
+      "name": "Pre-commit Runner",
+      "description": "Run pre-commit hooks on staged files before git commit",
+      "file": "precommit_run.sh",
+      "type": "PreToolUse",
+      "matcher": "Bash",
+      "statusMessage": "Running pre-commit",
+      "tags": ["git"],
+      "requires": ["pre-commit"]
+    }
+  ],
+  "profiles": {
+    "general": {
+      "description": "General-purpose hooks for any project",
+      "hooks": ["branch_check", "check_gitignore"]
+    },
+    "python": {
+      "description": "Python project with Black and Ruff",
+      "hooks": ["branch_check", "check_gitignore", "black_format", "ruff_lint", "precommit_run"]
+    }
+  }
+}
