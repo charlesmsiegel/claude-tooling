@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
-import { SessionInfo, SubagentInfo, AgentStatus } from '../types';
+import { SessionInfo, SubagentInfo } from '../types';
 
 export class SessionStore extends EventEmitter {
   private sessions = new Map<string, SessionInfo>();
