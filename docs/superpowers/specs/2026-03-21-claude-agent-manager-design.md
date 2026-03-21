@@ -106,7 +106,7 @@ CLAUDE AGENTS
 |-----------|---------|
 | Directory | New Agent, Open in Terminal, Remove from Watch |
 | Session   | Open Stream, Stop, Resume (if idle), Kill |
-| Subagent  | Open Stream, View in Rich Mode |
+| Subagent  | Open Stream |
 
 **Toolbar buttons:** + (New Agent), ⟳ (Refresh), ⚙ (Settings)
 
@@ -114,17 +114,18 @@ CLAUDE AGENTS
 
 Clicking an agent in the sidebar opens its stream in the bottom panel.
 
-**Terminal Mode (default):**
+**Terminal Mode (v1):**
 - VSCode pseudo-terminal (`vscode.Pseudoterminal`) connected to the agent's output stream
 - For new agents: pipes `claude --output-format stream-json` stdout, parsed and rendered as readable terminal output
 - For already-running agents: tails the JSONL session file and renders updates as they arrive
 - Multiple tabs supported — open several agent streams side by side
 - Tab label: agent type + short ID (e.g., `Explore #a2f3`)
 
-**Rich Webview Mode (toggle):**
+**Rich Webview Mode (v1.1 — deferred):**
 - Activated via icon button in the terminal tab bar, or right-click → "Open Rich View"
 - Renders: tool calls with syntax-highlighted arguments, file diffs inline, markdown-rendered reasoning, task progress bars, cost/token usage
 - Both modes stay synced to the same underlying StreamReader instance
+- Deferred because it's a substantial rendering engine; terminal mode covers the core need
 
 ## Agent Launch Flow
 
@@ -232,9 +233,20 @@ SessionStore emits:
   'agent-output'      → { agentId, data }
 ```
 
-### Process Liveness
+### Process Liveness and Stop/Kill Semantics
 
 Session files in `~/.claude/sessions/` contain a PID. Liveness is validated by `process.kill(pid, 0)` every 5 seconds. If a PID is dead but the session file remains, the agent is marked completed or errored based on the JSONL tail.
+
+**PID staleness guard:** Before signaling a PID, verify the process is actually a `claude` process by checking `/proc/<pid>/cmdline` (Linux) or `ps -p <pid> -o comm=` (cross-platform). If the process name doesn't match, treat the session as stale and remove it from the tree.
+
+**Signal semantics:**
+- **Stop** → `SIGTERM` — allows Claude Code to clean up gracefully (save session state, flush JSONL)
+- **Kill** → `SIGKILL` — immediate termination, used only if SIGTERM doesn't work within 5 seconds
+- Both actions are available for any session, including ones the extension didn't spawn. The PID staleness guard prevents signaling wrong processes.
+
+**For agents the extension spawned:** ProcessManager holds a direct `ChildProcess` reference, so it can use `child.kill()` without PID concerns.
+
+**For pre-existing agents:** The extension reads the PID from the session JSON, validates it's a claude process, then signals. This is inherently best-effort — if the user lacks permission to signal the process, the UI shows an error.
 
 ### No Persisted State
 
@@ -262,15 +274,35 @@ For each monitored directory:
 
 ## Claude Code Integration Points
 
+### Project Path Convention
+
+Claude Code encodes project paths as hyphen-delimited absolute paths in `~/.claude/projects/`. For example, a project at `/home/user/my-project` is stored under `~/.claude/projects/-home-user-my-project/`. The bridge derives this by replacing `/` with `-` in the absolute path of the working directory.
+
+### Stability Warning
+
+Claude Code does not document a stable public API for its file-based state. The paths and schemas below were observed against Claude Code as of March 2026. They may change without notice in future versions.
+
+**Validation strategy:** The bridge layer must validate file schemas on read rather than assuming structure. If a session JSON file lacks expected fields, skip it gracefully. The bridge should log warnings when encountering unexpected formats so we can detect breakage early. Consider a `CLAUDE_CODE_VERSION` check on activation to warn when running against an untested version.
+
 ### File-Based State (read-only)
 
-| Path | Contents | Purpose |
-|------|----------|---------|
-| `~/.claude/sessions/*.json` | `{ pid, sessionId, cwd, startedAt }` | Session discovery |
-| `~/.claude/projects/<project>/<sessionId>.jsonl` | Full message history | Output tailing |
-| `~/.claude/projects/<project>/<sessionId>/subagents/agent-<id>.meta.json` | `{ agentType, description }` | Subagent metadata |
-| `~/.claude/projects/<project>/<sessionId>/subagents/agent-<id>.jsonl` | Subagent message log | Subagent output |
-| `<target-dir>/.claude/agents/*.md` | Agent definitions (YAML frontmatter) | Agent discovery |
+| Path | Contents | Purpose | Verified |
+|------|----------|---------|----------|
+| `~/.claude/sessions/*.json` | `{ pid, sessionId, cwd, startedAt }` | Session discovery | Yes — observed directly |
+| `~/.claude/projects/<project>/<sessionId>.jsonl` | Full message history | Output tailing | Yes — observed directly |
+| `~/.claude/projects/<project>/<sessionId>/subagents/agent-<id>.meta.json` | `{ agentType, description }` | Subagent metadata | Yes — observed directly |
+| `~/.claude/projects/<project>/<sessionId>/subagents/agent-<id>.jsonl` | Subagent message log | Subagent output | Yes — observed directly |
+| `<target-dir>/.claude/agents/*.md` | Agent definitions (YAML frontmatter) | Agent discovery | Yes — documented pattern |
+
+### Subagent-to-Session Linking
+
+Subagent files live under `~/.claude/projects/<project>/<sessionId>/subagents/`. The parent session ID is encoded in the directory path — the `<sessionId>` path segment. The bridge resolves this by:
+
+1. Watching `~/.claude/projects/<project>/` for new session directories
+2. For each known session directory, watching the `subagents/` subdirectory for new `agent-*.meta.json` files
+3. Extracting the session ID from the path: `.../<sessionId>/subagents/agent-<agentId>.meta.json` → parent is `<sessionId>`
+
+This means the tree nesting (subagents under sessions) is derived directly from the file hierarchy. If Claude Code changes this structure, the bridge's path-parsing logic is the single point to update.
 
 ### CLI Commands (invoked by extension)
 
@@ -329,3 +361,4 @@ ide_plugins/agent-manager/
 - Agent-to-agent messaging from the UI
 - Cost tracking dashboard (though cost data is available in JSONL for the rich view)
 - Notifications/alerts when agents complete or error
+- Rich webview mode — deferred to v1.1. Terminal-based stream viewing is the v1 deliverable. The webview toggle (syntax-highlighted tool calls, inline diffs, markdown rendering, progress bars, cost display) is a substantial rendering engine that should be designed and built separately.
