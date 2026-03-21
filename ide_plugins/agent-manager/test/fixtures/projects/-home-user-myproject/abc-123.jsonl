@@ -1,0 +1,2 @@
+{"type":"assistant","message":{"content":"Starting work..."}}
+{"type":"tool_use","name":"Read","input":{"file_path":"/src/index.ts"}}
