@@ -13,7 +13,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "main": "./out/extension.js",
+  "main": "./out/src/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -70,6 +70,11 @@
       {
         "command": "claudeAgentManager.openInTerminal",
         "title": "Claude: Open Directory in Terminal"
+      },
+      {
+        "command": "claudeAgentManager.toggleFinished",
+        "title": "Claude: Toggle Finished Agents",
+        "icon": "$(filter)"
       }
     ],
     "menus": {
@@ -87,6 +92,11 @@
         {
           "command": "claudeAgentManager.addWatchDir",
           "when": "view == claudeAgents"
+        },
+        {
+          "command": "claudeAgentManager.toggleFinished",
+          "when": "view == claudeAgents",
+          "group": "navigation"
         }
       ],
       "view/item/context": [

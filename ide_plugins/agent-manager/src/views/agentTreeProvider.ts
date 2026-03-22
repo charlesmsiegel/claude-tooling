@@ -8,6 +8,16 @@ type AgentTreeNode = DirectoryNode | SessionNode | SubagentNode;
 export class AgentTreeProvider implements vscode.TreeDataProvider<AgentTreeNode> {
   private _onDidChangeTreeData = new vscode.EventEmitter<AgentTreeNode | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+  private _hideFinished = true;
+
+  get hideFinished(): boolean {
+    return this._hideFinished;
+  }
+
+  set hideFinished(value: boolean) {
+    this._hideFinished = value;
+    this.refresh();
+  }
 
   constructor(private readonly bridge: ClaudeCodeBridge) {
     bridge.sessionStore.on('session-added', () => this.refresh());
@@ -37,6 +47,7 @@ export class AgentTreeProvider implements vscode.TreeDataProvider<AgentTreeNode>
     if (element instanceof SessionNode) {
       return this.bridge.sessionStore
         .getSubagents(element.session.sessionId)
+        .filter((sub) => !this._hideFinished || sub.status !== 'completed')
         .map((sub) => new SubagentNode(sub));
     }
 
@@ -47,6 +58,7 @@ export class AgentTreeProvider implements vscode.TreeDataProvider<AgentTreeNode>
     return this.bridge.sessionStore
       .getSessions()
       .filter((s) => s.cwd === dir.path)
+      .filter((s) => !this._hideFinished || (s.status !== 'completed' && s.status !== 'errored'))
       .map((s) => {
         const subagentCount = this.bridge.sessionStore.getSubagents(s.sessionId).length;
         return new SessionNode(s, subagentCount);

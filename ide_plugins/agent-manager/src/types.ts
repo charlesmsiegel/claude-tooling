@@ -12,6 +12,7 @@ export interface SubagentInfo {
   description: string;
   sessionId: string;
   isSidechain?: boolean;
+  status: AgentStatus;
 }
 
 export interface AgentDefinition {

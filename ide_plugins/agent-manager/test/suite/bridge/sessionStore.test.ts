@@ -82,6 +82,7 @@ describe('SessionStore', () => {
       path.join(subagentsDir, 'agent-x1y2z3.meta.json'),
       JSON.stringify({ agentType: 'Explore', description: 'Searching files' })
     );
+    fs.writeFileSync(path.join(subagentsDir, 'agent-x1y2z3.jsonl'), '{"type":"assistant","message":{"content":"working..."}}\n');
 
     store = new SessionStore(sessionsDir, projectsDir);
     await store.init();
@@ -91,5 +92,6 @@ describe('SessionStore', () => {
     assert.strictEqual(subagents[0].agentType, 'Explore');
     assert.strictEqual(subagents[0].agentId, 'x1y2z3');
     assert.strictEqual(subagents[0].sessionId, 'abc-123');
+    assert.strictEqual(subagents[0].status, 'active');
   });
 });

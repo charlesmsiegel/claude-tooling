@@ -148,23 +148,51 @@ export class SessionStore extends EventEmitter {
       if (!match) return;
 
       const agentId = match[1];
+      const jsonlPath = filePath.replace('.meta.json', '.jsonl');
+      const status = this.detectSubagentStatus(jsonlPath);
+
       const subagent: SubagentInfo = {
         agentId,
         agentType: data.agentType ?? 'unknown',
         description: data.description ?? '',
         sessionId,
         isSidechain: data.isSidechain,
+        status,
       };
 
       const existing = this.subagents.get(sessionId) ?? [];
-      if (!existing.find((s) => s.agentId === agentId)) {
+      const idx = existing.findIndex((s) => s.agentId === agentId);
+      if (idx === -1) {
         existing.push(subagent);
         this.subagents.set(sessionId, existing);
         this.emit('subagent-spawned', subagent);
+      } else {
+        existing[idx] = subagent;
       }
     } catch {
       // skip malformed
     }
+  }
+
+  private detectSubagentStatus(jsonlPath: string): 'active' | 'completed' {
+    try {
+      const content = fs.readFileSync(jsonlPath, 'utf-8');
+      const lines = content.trimEnd().split('\n');
+      // Read last few lines looking for a final assistant message with stop_reason: "end_turn"
+      for (let i = lines.length - 1; i >= Math.max(0, lines.length - 3); i--) {
+        try {
+          const msg = JSON.parse(lines[i]);
+          if (msg.type === 'assistant' && msg.message?.stop_reason === 'end_turn') {
+            return 'completed';
+          }
+        } catch {
+          // skip malformed lines
+        }
+      }
+    } catch {
+      // file may not exist yet
+    }
+    return 'active';
   }
 
   private findProjectDir(sessionId: string): string | undefined {

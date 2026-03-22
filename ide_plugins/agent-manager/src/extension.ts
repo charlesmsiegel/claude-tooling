@@ -57,6 +57,15 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  // toggleFinished — hide/show completed agents
+  context.subscriptions.push(
+    vscode.commands.registerCommand('claudeAgentManager.toggleFinished', () => {
+      treeProvider.hideFinished = !treeProvider.hideFinished;
+      const state = treeProvider.hideFinished ? 'hidden' : 'visible';
+      vscode.window.showInformationMessage(`Finished agents are now ${state}`);
+    })
+  );
+
   // openStream — session or subagent context menu
   context.subscriptions.push(
     vscode.commands.registerCommand(
