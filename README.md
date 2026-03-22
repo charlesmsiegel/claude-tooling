@@ -22,6 +22,7 @@ Slash commands for `.claude/commands/`.
 | `brutal-review` | Harsh code review of your current diff |
 | `fix-issue` | `/fix-issue <number>` — branch, test, fix, PR |
 | `fix-pr` | `/fix-pr <number>` — address all review feedback on a PR |
+| `update-docs` | `/update-docs` — regenerate the project documentation skill |
 
 ### Hooks (`hooks/`)
 
@@ -51,7 +52,9 @@ Full skill directories (with analysis scripts and references) for `.claude/skill
 | `strands-agents` | Build AI agents with the AWS Strands Agents SDK |
 | `technical-debt-detector` | Find and prioritize tech debt in Python codebases |
 
-### VS Code Extension (`ide_plugins/agent-manager/`)
+### VS Code Extensions (`ide_plugins/`)
+
+#### Agent Manager (`ide_plugins/agent-manager/`)
 
 A VS Code sidebar for orchestrating Claude Code agents across directories and git worktrees. See [its README](ide_plugins/agent-manager/README.md) for full details.
 
@@ -60,6 +63,21 @@ A VS Code sidebar for orchestrating Claude Code agents across directories and gi
 - Stream viewer with pseudo-terminal output
 - Auto-discovers git worktrees
 - Toggle to hide finished agents
+
+#### Claude Control (`ide_plugins/claude-control/`)
+
+Graphical management for Claude Code configuration. See [its README](ide_plugins/claude-control/README.md) for full details.
+
+- Tree view of all Claude Code config: settings, hooks, agents, commands, skills, MCP servers, memory
+- Scope-aware editing (user, project, workspace)
+- Connection graph showing relationships between config items
+- Drag-and-drop reordering for hooks
+
+### Templates
+
+| File | Purpose |
+|------|---------|
+| [`EXAMPLE_CLAUDE.md`](EXAMPLE_CLAUDE.md) | Template for adding a self-updating documentation skill to any project |
 
 ## Installation
 
