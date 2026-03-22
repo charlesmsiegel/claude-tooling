@@ -44,30 +44,20 @@ export class SessionNode extends vscode.TreeItem {
 
 export class SubagentNode extends vscode.TreeItem {
   constructor(public readonly subagent: SubagentInfo) {
-    const shortId = subagent.agentId.substring(0, 4);
-    const label = SubagentNode.buildLabel(subagent, shortId);
+    const label = SubagentNode.buildLabel(subagent);
     super(label, vscode.TreeItemCollapsibleState.None);
 
     this.contextValue = 'subagent';
     this.iconPath = SubagentNode.statusIcon(subagent.status);
-    // Show type as description when description is used as label
-    if (subagent.displayName || (subagent.agentType === 'general-purpose' && subagent.description)) {
-      this.description = subagent.agentType;
-    } else {
-      this.description = subagent.description;
-    }
+    this.description = subagent.agentType;
     this.tooltip = `Agent ID: ${subagent.agentId}\nType: ${subagent.agentType}\n${subagent.description}`;
   }
 
-  private static buildLabel(subagent: SubagentInfo, shortId: string): string {
+  private static buildLabel(subagent: SubagentInfo): string {
     if (subagent.displayName) {
       return subagent.displayName;
     }
-    // For general-purpose agents, the description is far more useful than the type
-    if (subagent.agentType === 'general-purpose' && subagent.description) {
-      return subagent.description;
-    }
-    return `${subagent.agentType} #${shortId}`;
+    return subagent.description || `${subagent.agentType} #${subagent.agentId.substring(0, 4)}`;
   }
 
   private static statusIcon(status: AgentStatus): vscode.ThemeIcon {

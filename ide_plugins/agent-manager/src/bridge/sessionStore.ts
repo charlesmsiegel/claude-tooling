@@ -8,6 +8,8 @@ export class SessionStore extends EventEmitter {
   private subagents = new Map<string, SubagentInfo[]>();
   private watchers: fs.FSWatcher[] = [];
   private livenessTimer: NodeJS.Timeout | null = null;
+  /** Cache of agent definition names per project cwd, keyed by normalized name */
+  private agentDefCache = new Map<string, string[]>();
 
   constructor(
     private readonly sessionsDir: string,
@@ -168,9 +170,22 @@ export class SessionStore extends EventEmitter {
         status = this.detectSubagentStatus(jsonlPath);
       }
 
+      let agentType: string = data.agentType ?? 'unknown';
+      if (agentType === 'general-purpose') {
+        try {
+          const jsonlPath = filePath.replace('.meta.json', '.jsonl');
+          const inferred = this.inferAgentType(sessionId, jsonlPath);
+          if (inferred) {
+            agentType = inferred;
+          }
+        } catch {
+          // inference is best-effort
+        }
+      }
+
       const subagent: SubagentInfo = {
         agentId,
-        agentType: data.agentType ?? 'unknown',
+        agentType,
         description: data.description ?? '',
         sessionId,
         isSidechain: data.isSidechain,
@@ -205,6 +220,14 @@ export class SessionStore extends EventEmitter {
         } catch {
           // skip malformed lines
         }
+      }
+
+      // If JSONL hasn't been modified in 30+ seconds, the subagent is done —
+      // an active subagent continuously writes to its JSONL
+      const stat = fs.statSync(jsonlPath);
+      const ageMs = Date.now() - stat.mtimeMs;
+      if (ageMs > 30_000) {
+        return 'completed';
       }
     } catch {
       // file may not exist yet
@@ -259,6 +282,77 @@ export class SessionStore extends EventEmitter {
 
     if (changed) {
       this.emit('subagent-completed');
+    }
+  }
+
+  /**
+   * For general-purpose agents, try to infer the real agent type by matching
+   * the first JSONL prompt ("You are a Lore Writer...") against agent
+   * definition filenames in the project's .claude/agents/ directory.
+   */
+  private inferAgentType(sessionId: string, jsonlPath: string): string | undefined {
+    const session = this.sessions.get(sessionId);
+    if (!session) return undefined;
+
+    const agentNames = this.getAgentDefinitions(session.cwd);
+    if (agentNames.length === 0) return undefined;
+
+    try {
+      // Read the first ~4KB — enough to capture the prompt text without
+      // needing to parse the entire (potentially huge) JSONL line.
+      const fd = fs.openSync(jsonlPath, 'r');
+      const buf = Buffer.alloc(4096);
+      const bytesRead = fs.readSync(fd, buf, 0, 4096, 0);
+      fs.closeSync(fd);
+      const raw = buf.toString('utf-8', 0, bytesRead).toLowerCase();
+
+      // Match agent definition names against the raw text
+      // e.g. "lore-writer" → look for "lore writer" or "lore-writer"
+      for (const name of agentNames) {
+        const spaced = name.replace(/-/g, ' ');
+        if (raw.includes(spaced) || raw.includes(name)) {
+          return name;
+        }
+      }
+    } catch {
+      // JSONL may not exist yet
+    }
+    return undefined;
+  }
+
+  private getAgentDefinitions(cwd: string): string[] {
+    if (this.agentDefCache.has(cwd)) {
+      return this.agentDefCache.get(cwd)!;
+    }
+
+    const names: string[] = [];
+    const dirs = [
+      path.join(cwd, '.claude', 'agents'),
+      path.join(process.env.HOME ?? '', '.claude', 'agents'),
+    ];
+    for (const agentsDir of dirs) {
+      this.collectMdFiles(agentsDir, names);
+    }
+    this.agentDefCache.set(cwd, names);
+    return names;
+  }
+
+  /** Recursively collect .md filenames (without extension) from a directory. */
+  private collectMdFiles(dir: string, names: string[]): void {
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          this.collectMdFiles(path.join(dir, entry.name), names);
+        } else if (entry.name.endsWith('.md')) {
+          const name = entry.name.slice(0, -3);
+          if (!names.includes(name)) {
+            names.push(name);
+          }
+        }
+      }
+    } catch {
+      // dir may not exist
     }
   }
 
