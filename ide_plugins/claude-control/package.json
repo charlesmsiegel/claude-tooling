@@ -1,0 +1,66 @@
+{
+  "name": "claude-control-plugin",
+  "displayName": "Claude Control",
+  "description": "Graphical management for Claude Code configuration",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claude-control",
+          "title": "Claude Control",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "claude-control": [
+        {
+          "id": "claudeControlTree",
+          "name": "Configuration"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "claudeControl.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "claudeControl.showConnections",
+        "title": "Show Connections"
+      }
+    ]
+  },
+  "scripts": {
+    "build:ext": "node esbuild.config.mjs",
+    "watch:ext": "node esbuild.config.mjs --watch",
+    "build:webview": "cd webview-ui && npm run build",
+    "build": "npm run build:ext && npm run build:webview",
+    "watch": "concurrently \"npm run watch:ext\" \"cd webview-ui && npm run dev\"",
+    "package": "vsce package",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.5",
+    "@types/vscode": "^1.109.0",
+    "esbuild": "^0.27.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "yaml": "^2.8.2"
+  }
+}
