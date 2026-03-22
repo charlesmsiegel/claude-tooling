@@ -75,6 +75,10 @@
         "command": "claudeAgentManager.toggleFinished",
         "title": "Claude: Toggle Finished Agents",
         "icon": "$(filter)"
+      },
+      {
+        "command": "claudeAgentManager.renameAgent",
+        "title": "Claude: Rename Agent"
       }
     ],
     "menus": {
@@ -127,6 +131,10 @@
         {
           "command": "claudeAgentManager.resumeAgent",
           "when": "viewItem == sessionIdle"
+        },
+        {
+          "command": "claudeAgentManager.renameAgent",
+          "when": "viewItem == subagent"
         }
       ]
     },

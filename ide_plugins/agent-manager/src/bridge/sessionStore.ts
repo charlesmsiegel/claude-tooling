@@ -35,6 +35,16 @@ export class SessionStore extends EventEmitter {
     return this.sessions.get(sessionId);
   }
 
+  renameSubagent(sessionId: string, agentId: string, displayName: string): boolean {
+    const subs = this.subagents.get(sessionId);
+    if (!subs) return false;
+    const sub = subs.find((s) => s.agentId === agentId);
+    if (!sub) return false;
+    sub.displayName = displayName || undefined;
+    this.emit('subagent-completed'); // triggers tree refresh
+    return true;
+  }
+
   dispose(): void {
     for (const w of this.watchers) {
       w.close();
@@ -148,8 +158,15 @@ export class SessionStore extends EventEmitter {
       if (!match) return;
 
       const agentId = match[1];
-      const jsonlPath = filePath.replace('.meta.json', '.jsonl');
-      const status = this.detectSubagentStatus(jsonlPath);
+      const parentSession = this.sessions.get(sessionId);
+      let status: 'active' | 'completed';
+      if (parentSession && parentSession.status === 'completed') {
+        // Dead session can't have active subagents
+        status = 'completed';
+      } else {
+        const jsonlPath = filePath.replace('.meta.json', '.jsonl');
+        status = this.detectSubagentStatus(jsonlPath);
+      }
 
       const subagent: SubagentInfo = {
         agentId,
@@ -211,21 +228,31 @@ export class SessionStore extends EventEmitter {
     return undefined;
   }
 
-  private refreshSubagentStatuses(sessionId: string): void {
-    const projectDir = this.findProjectDir(sessionId);
-    if (!projectDir) return;
-
-    const subagentsDir = path.join(projectDir, sessionId, 'subagents');
+  private refreshSubagentStatuses(sessionId: string, forceCompleted = false): void {
     const existing = this.subagents.get(sessionId) ?? [];
     let changed = false;
 
-    for (const sub of existing) {
-      if (sub.status === 'active') {
-        const jsonlPath = path.join(subagentsDir, `agent-${sub.agentId}.jsonl`);
-        const newStatus = this.detectSubagentStatus(jsonlPath);
-        if (newStatus !== sub.status) {
-          sub.status = newStatus;
+    if (forceCompleted) {
+      // Parent session is dead — all subagents must be completed
+      for (const sub of existing) {
+        if (sub.status !== 'completed') {
+          sub.status = 'completed';
           changed = true;
+        }
+      }
+    } else {
+      const projectDir = this.findProjectDir(sessionId);
+      if (!projectDir) return;
+      const subagentsDir = path.join(projectDir, sessionId, 'subagents');
+
+      for (const sub of existing) {
+        if (sub.status === 'active') {
+          const jsonlPath = path.join(subagentsDir, `agent-${sub.agentId}.jsonl`);
+          const newStatus = this.detectSubagentStatus(jsonlPath);
+          if (newStatus !== sub.status) {
+            sub.status = newStatus;
+            changed = true;
+          }
         }
       }
     }
@@ -249,8 +276,12 @@ export class SessionStore extends EventEmitter {
       for (const [sid, session] of this.sessions) {
         if (session.status === 'active' && !this.checkPidAlive(session.pid)) {
           session.status = 'completed';
-          this.refreshSubagentStatuses(sid);
+          this.refreshSubagentStatuses(sid, true);
           this.emit('session-removed', sid);
+        } else {
+          // Re-check subagent statuses even while session is alive,
+          // since subagents finish independently of the parent session
+          this.refreshSubagentStatuses(sid);
         }
       }
     }, this.livenessIntervalMs);

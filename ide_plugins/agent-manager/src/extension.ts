@@ -112,6 +112,49 @@ export function activate(context: vscode.ExtensionContext): void {
     )
   );
 
+  // renameAgent — subagent context menu
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'claudeAgentManager.renameAgent',
+      async (node?: SubagentNode) => {
+        if (!(node instanceof SubagentNode)) {
+          vscode.window.showErrorMessage('Select a subagent node to rename.');
+          return;
+        }
+        const { subagent } = node;
+        const current = subagent.displayName ?? '';
+        const newName = await vscode.window.showInputBox({
+          title: 'Rename Agent',
+          prompt: 'Enter a display name (leave empty to reset)',
+          value: current,
+          placeHolder: subagent.description || subagent.agentType,
+        });
+        if (newName === undefined) return; // cancelled
+
+        bridge.sessionStore.renameSubagent(subagent.sessionId, subagent.agentId, newName);
+
+        // Persist to globalState
+        const key = 'agentDisplayNames';
+        const map = context.globalState.get<Record<string, string>>(key, {});
+        if (newName) {
+          map[subagent.agentId] = newName;
+        } else {
+          delete map[subagent.agentId];
+        }
+        await context.globalState.update(key, map);
+      }
+    )
+  );
+
+  // Restore persisted display names when subagents are loaded
+  bridge.sessionStore.on('subagent-spawned', (sub) => {
+    const map = context.globalState.get<Record<string, string>>('agentDisplayNames', {});
+    const name = map[sub.agentId];
+    if (name) {
+      sub.displayName = name;
+    }
+  });
+
   // addWatchDir
   context.subscriptions.push(
     vscode.commands.registerCommand('claudeAgentManager.addWatchDir', async () => {
