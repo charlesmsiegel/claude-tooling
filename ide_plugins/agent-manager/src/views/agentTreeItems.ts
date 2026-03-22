@@ -48,8 +48,17 @@ export class SubagentNode extends vscode.TreeItem {
     super(`${subagent.agentType} #${shortId}`, vscode.TreeItemCollapsibleState.None);
 
     this.contextValue = 'subagent';
-    this.iconPath = new vscode.ThemeIcon('circle-small-filled', new vscode.ThemeColor('textLink.foreground'));
+    this.iconPath = SubagentNode.statusIcon(subagent.status);
     this.description = subagent.description;
     this.tooltip = `Agent ID: ${subagent.agentId}\nType: ${subagent.agentType}\n${subagent.description}`;
+  }
+
+  private static statusIcon(status: AgentStatus): vscode.ThemeIcon {
+    switch (status) {
+      case 'active': return new vscode.ThemeIcon('circle-small-filled', new vscode.ThemeColor('textLink.foreground'));
+      case 'completed': return new vscode.ThemeIcon('pass', new vscode.ThemeColor('testing.iconPassed'));
+      case 'errored': return new vscode.ThemeIcon('circle-small-filled', new vscode.ThemeColor('errorForeground'));
+      case 'idle': return new vscode.ThemeIcon('circle-small-filled', new vscode.ThemeColor('editorWarning.foreground'));
+    }
   }
 }

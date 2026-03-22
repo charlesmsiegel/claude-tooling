@@ -211,6 +211,30 @@ export class SessionStore extends EventEmitter {
     return undefined;
   }
 
+  private refreshSubagentStatuses(sessionId: string): void {
+    const projectDir = this.findProjectDir(sessionId);
+    if (!projectDir) return;
+
+    const subagentsDir = path.join(projectDir, sessionId, 'subagents');
+    const existing = this.subagents.get(sessionId) ?? [];
+    let changed = false;
+
+    for (const sub of existing) {
+      if (sub.status === 'active') {
+        const jsonlPath = path.join(subagentsDir, `agent-${sub.agentId}.jsonl`);
+        const newStatus = this.detectSubagentStatus(jsonlPath);
+        if (newStatus !== sub.status) {
+          sub.status = newStatus;
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      this.emit('subagent-completed');
+    }
+  }
+
   private checkPidAlive(pid: number): boolean {
     try {
       process.kill(pid, 0);
@@ -225,6 +249,7 @@ export class SessionStore extends EventEmitter {
       for (const [sid, session] of this.sessions) {
         if (session.status === 'active' && !this.checkPidAlive(session.pid)) {
           session.status = 'completed';
+          this.refreshSubagentStatuses(sid);
           this.emit('session-removed', sid);
         }
       }
