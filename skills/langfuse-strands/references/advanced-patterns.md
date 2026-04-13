@@ -61,21 +61,56 @@ if __name__ == "__main__":
 
 ## Evaluation with Ragas
 
-Combine Langfuse traces with Ragas metrics for systematic evaluation:
+Combine Langfuse traces with Ragas metrics for systematic evaluation.
+
+**Preferred: Use the Experiment Runner** which keeps all scores in context:
 
 ```python
-from langfuse import Langfuse
+from langfuse import get_client
+from ragas.metrics import faithfulness, answer_relevancy
+
+langfuse = get_client()
+
+def ragas_evaluator(item, task_output):
+    """Evaluate a single trace output with Ragas metrics."""
+    from ragas import evaluate
+    result = evaluate(
+        dataset=[{
+            "question": item["input"],
+            "answer": task_output,
+            "contexts": item.get("contexts", [])
+        }],
+        metrics=[faithfulness, answer_relevancy]
+    )
+    return [
+        {"name": "faithfulness", "value": result.scores[0]["faithfulness"], "data_type": "NUMERIC"},
+        {"name": "answer_relevancy", "value": result.scores[0]["answer_relevancy"], "data_type": "NUMERIC"},
+    ]
+
+result = langfuse.run_experiment(
+    name="ragas-eval",
+    data=my_dataset,
+    task=my_task,
+    evaluators=[ragas_evaluator]
+)
+print(result.format())
+```
+
+**Manual approach** (use when you need custom trace filtering):
+
+```python
+from langfuse import get_client
 from ragas import evaluate
 from ragas.metrics import faithfulness, answer_relevancy
 
-# Fetch traces from Langfuse
-langfuse = Langfuse()
-traces = langfuse.fetch_traces(limit=100, tags=["production"])
+langfuse = get_client()
+
+# Fetch traces using the v4+ api namespace
+traces = langfuse.api.trace.list(limit=100, tags=["production"]).data
 
 # Extract data for Ragas evaluation
 evaluation_data = []
-for trace in traces.data:
-    # Extract user query, agent response, and retrieved contexts from trace
+for trace in traces:
     evaluation_data.append({
         "question": trace.input,
         "answer": trace.output,
@@ -89,11 +124,12 @@ results = evaluate(
 )
 
 # Push scores back to Langfuse
-for trace, score in zip(traces.data, results.scores):
-    langfuse.score(
+for trace, score in zip(traces, results.scores):
+    langfuse.create_score(
         trace_id=trace.id,
         name="faithfulness",
-        value=score["faithfulness"]
+        value=score["faithfulness"],
+        data_type="NUMERIC"
     )
 ```
 
